@@ -90,6 +90,9 @@ UdpTraceClient::GetTypeId (void)
                    BooleanValue (true),
                    MakeBooleanAccessor (&UdpTraceClient::SetTraceLoop),
                    MakeBooleanChecker ())
+    .AddTraceSource ("Tx", "A packet has been sent",
+                MakeTraceSourceAccessor (&UdpTraceClient::m_txTrace),
+                "ns3::Packet::TracedCallback")
 
   ;
   return tid;
@@ -186,6 +189,7 @@ UdpTraceClient::LoadTrace (std::string filename)
   NS_LOG_FUNCTION (this << filename);
   uint32_t time = 0;
   uint32_t index = 0;
+  // Old index must be -1 because otherwise the first entry will be skipped
   uint32_t oldIndex = 0;
   uint32_t size = 0;
   uint32_t prevTime = 0;
@@ -201,24 +205,27 @@ UdpTraceClient::LoadTrace (std::string filename)
   while (ifTraceFile.good ())
     {
       ifTraceFile >> index >> frameType >> time >> size;
+      NS_LOG_INFO ("LoadTrace: " << index << " " << frameType << " " << time << " " << size);
       if (index == oldIndex)
         {
           continue;
         }
-      if (frameType == 'B')
-        {
-          entry.timeToSend = 0;
-        }
-      else
-        {
+      // if (frameType == 'B')
+      //   {
+      //     entry.timeToSend = 0;
+      //   }
+      // else
+      //   {
           entry.timeToSend = time - prevTime;
           prevTime = time;
-        }
+        // }
       entry.packetSize = size;
       entry.frameType = frameType;
+      entry.pck_id = index;
       m_entries.push_back (entry);
       oldIndex = index;
     }
+    NS_LOG_INFO("Loaded Traced File:" << m_entries.size() << " entries");
   ifTraceFile.close ();
   NS_ASSERT_MSG (prevTime != 0, "A trace file can not contain B frames only.");
   m_currentEntry = 0;
@@ -343,6 +350,7 @@ UdpTraceClient::SendPacket (uint32_t size)
       ++m_sent;
       NS_LOG_INFO ("Sent " << size << " bytes to "
                            << addressString.str ());
+      m_txTrace (p);
     }
   else
     {
@@ -361,25 +369,26 @@ UdpTraceClient::Send (void)
   bool cycled = false;
   Ptr<Packet> p;
   struct TraceEntry *entry = &m_entries[m_currentEntry];
-  do
+  NS_LOG_INFO("Pck id " << entry->pck_id << "Pck Size " << entry->packetSize << "Frame Type " << entry->frameType << "Time to send " << entry->timeToSend);
+  // do
+  //   {
+  for (uint32_t i = 0; i < entry->packetSize / m_maxPacketSize; i++)
     {
-      for (uint32_t i = 0; i < entry->packetSize / m_maxPacketSize; i++)
-        {
-          SendPacket (m_maxPacketSize);
-        }
-
-      uint16_t sizetosend = entry->packetSize % m_maxPacketSize;
-      SendPacket (sizetosend);
-
-      m_currentEntry++;
-      if (m_currentEntry >= m_entries.size ())
-        {
-          m_currentEntry = 0;
-          cycled = true;
-        }
-      entry = &m_entries[m_currentEntry];
+      SendPacket (m_maxPacketSize);
     }
-  while (entry->timeToSend == 0);
+
+  uint16_t sizetosend = entry->packetSize % m_maxPacketSize;
+  SendPacket (sizetosend);
+
+  m_currentEntry++;
+  if (m_currentEntry >= m_entries.size ())
+    {
+      m_currentEntry = 0;
+      cycled = true;
+    }
+  entry = &m_entries[m_currentEntry];
+  //   }
+  // while (entry->timeToSend == 0);
 
   if (!cycled || m_traceLoop)
     {

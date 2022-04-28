@@ -26,6 +26,7 @@
 #include "ns3/event-id.h"
 #include "ns3/ptr.h"
 #include "ns3/ipv4-address.h"
+#include "ns3/traced-callback.h"
 #include <vector>
 
 namespace ns3 {
@@ -157,6 +158,7 @@ private:
     uint32_t timeToSend; //!< Time to send the frame
     uint32_t packetSize; //!< Size of the frame
     char frameType; //!< Frame type (I, P or B)
+    uint32_t pck_id; //!< Packet id
   };
 
   uint32_t m_sent; //!< Counter for sent packets
@@ -170,6 +172,9 @@ private:
   static struct TraceEntry g_defaultEntries[]; //!< Default trace to send
   uint16_t m_maxPacketSize; //!< Maximum packet size to send (including the SeqTsHeader)
   bool m_traceLoop; //!< Loop through the trace file
+
+  TracedCallback<Ptr<const Packet> > m_txTrace;
+
 };
 
 } // namespace ns3
